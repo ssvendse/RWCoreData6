@@ -32,67 +32,69 @@ import UIKit
 import CoreData
 
 class NotesListViewController: UITableViewController {
-
+  
   // MARK: - Properties
-  fileprivate lazy var stack: CoreDataStack = CoreDataStack(modelName:"UnCloudNotesDataModel")
-
+  fileprivate lazy var stack: CoreDataStack = {
+    let manager = DataMigrationManager(modelNamed:"UnCloudNotesDataModel", enableMigrations: true)
+    return manager.stack
+  }()
+  
   fileprivate lazy var notes: NSFetchedResultsController<Note> = {
     let context = self.stack.managedContext
-    let request = Note.fetchRequest() as! NSFetchRequest<Note>
+    let request: NSFetchRequest<Note> = NSFetchRequest(entityName: "Note")
     request.sortDescriptors = [NSSortDescriptor(key: #keyPath(Note.dateCreated), ascending: false)]
-
+    
     let notes = NSFetchedResultsController(fetchRequest: request, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: nil)
     notes.delegate = self
     return notes
   }()
-
+  
   // MARK: - View Life Cycle
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-
+    
     do {
       try notes.performFetch()
     } catch {
       print("Error: \(error)")
     }
-
+    
     tableView.reloadData()
   }
-
+  
   // MARK: - Navigation
   override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
     if let navController = segue.destination as? UINavigationController,
       let viewController = navController.topViewController as? UsesCoreDataObjects {
-        viewController.managedObjectContext = stack.savingContext
+      viewController.managedObjectContext = stack.savingContext
     }
-
+    
     if let detailView = segue.destination as? NoteDisplayable,
       let selectedIndex = tableView.indexPathForSelectedRow {
-        detailView.note = notes.object(at: selectedIndex)
+      detailView.note = notes.object(at: selectedIndex)
     }
   }
 }
 
 // MARK: - IBActions
 extension NotesListViewController {
-
+  
   @IBAction func unwindToNotesList(_ segue: UIStoryboardSegue) {
     print("Unwinding to Notes List")
-
+    
     stack.saveContext()
   }
 }
 
 // MARK: - UITableViewDataSource
 extension NotesListViewController {
-
+  
   override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     let objects = notes.fetchedObjects
     return objects?.count ?? 0
   }
-
+  
   override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    
     let note = notes.object(at: indexPath)
     let cell: NoteTableViewCell
     if note.image == nil {
@@ -100,7 +102,6 @@ extension NotesListViewController {
     } else {
       cell = tableView.dequeueReusableCell(withIdentifier: "NoteCellWithImage", for: indexPath) as! NoteImageTableViewCell
     }
-    
     cell.note = note
     return cell
   }
@@ -108,13 +109,13 @@ extension NotesListViewController {
 
 // MARK: - NSFetchedResultsControllerDelegate
 extension NotesListViewController: NSFetchedResultsControllerDelegate {
-
+  
   func controllerWillChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
   }
-
+  
   func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChange anObject: Any, at indexPath: IndexPath?, for type: NSFetchedResultsChangeType, newIndexPath: IndexPath?) {
     let wrapIndexPath: (IndexPath?) -> [IndexPath] = { $0.map { [$0] } ?? [] }
-
+    
     switch type {
     case .insert:
       tableView.insertRows(at: wrapIndexPath(newIndexPath), with: .automatic)
@@ -124,7 +125,8 @@ extension NotesListViewController: NSFetchedResultsControllerDelegate {
       break
     }
   }
-
+  
   func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
   }
 }
+
